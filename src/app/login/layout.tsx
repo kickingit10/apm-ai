@@ -1,0 +1,6 @@
+// Force dynamic rendering — login page needs runtime env vars
+export const dynamic = 'force-dynamic'
+
+export default function LoginLayout({ children }: { children: React.ReactNode }) {
+  return children
+}
