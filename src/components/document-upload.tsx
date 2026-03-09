@@ -72,20 +72,36 @@ export default function DocumentUpload({ projectId }: { projectId: string }) {
         return
       }
 
-      const { error: dbError } = await supabase.from('documents').insert({
+      const { data: docRecord, error: dbError } = await supabase.from('documents').insert({
         project_id: projectId,
         file_name: file.name,
         file_type: getFileType(file.name),
         category,
         storage_path: storagePath,
         file_size: file.size,
-      })
+        processing_status: 'pending',
+      }).select().single()
 
-      if (dbError) {
-        setError(`Failed to save record for ${file.name}: ${dbError.message}`)
+      if (dbError || !docRecord) {
+        setError(`Failed to save record for ${file.name}: ${dbError?.message}`)
         setUploading(false)
         return
       }
+
+      // Trigger text extraction + embedding pipeline (non-blocking)
+      fetch('/api/process-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: docRecord.id,
+          storagePath,
+          fileName: file.name,
+          fileType: getFileType(file.name),
+          category,
+        }),
+      }).catch(() => {
+        // Processing happens in background — errors logged server-side
+      })
     }
 
     setFiles([])

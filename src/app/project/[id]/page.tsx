@@ -4,6 +4,7 @@ import Link from 'next/link'
 import Header from '@/components/header'
 import DocumentUpload from '@/components/document-upload'
 import DocumentList from '@/components/document-list'
+import ChatPanel from '@/components/chat-panel'
 
 export default async function ProjectPage({ params }: { params: { id: string } }) {
   const supabase = await createClient()
@@ -25,6 +26,12 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     .eq('project_id', project.id)
     .order('created_at', { ascending: false })
 
+  const { data: chatSessions } = await supabase
+    .from('chat_sessions')
+    .select('id, title, created_at')
+    .eq('project_id', project.id)
+    .order('created_at', { ascending: false })
+
   const statusColor: Record<string, string> = {
     active: 'bg-green-100 text-green-700',
     completed: 'bg-gray-100 text-gray-600',
@@ -34,7 +41,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   return (
     <div className="min-h-screen bg-gray-50">
       <Header email={user.email ?? ''} />
-      <main className="max-w-5xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {/* Breadcrumb */}
         <nav className="flex items-center gap-2 text-sm text-gray-500 mb-4">
           <Link href="/dashboard" className="hover:text-blue-600 transition-colors">
@@ -65,11 +72,19 @@ export default async function ProjectPage({ params }: { params: { id: string } }
           </div>
         </div>
 
-        {/* Document Upload */}
-        <DocumentUpload projectId={project.id} />
+        {/* Two-column layout: Documents left, Chat right */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Left column: Documents */}
+          <div className="space-y-6">
+            <DocumentUpload projectId={project.id} />
+            <DocumentList initialDocuments={documents ?? []} />
+          </div>
 
-        {/* Document List */}
-        <DocumentList initialDocuments={documents ?? []} projectId={project.id} />
+          {/* Right column: Chat */}
+          <div className="lg:sticky lg:top-6 lg:self-start">
+            <ChatPanel projectId={project.id} initialSessions={chatSessions ?? []} />
+          </div>
+        </div>
       </main>
     </div>
   )

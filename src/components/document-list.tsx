@@ -12,6 +12,7 @@ type Document = {
   category: string
   storage_path: string
   file_size: number | null
+  processing_status?: string
   created_at: string
 }
 
@@ -134,6 +135,18 @@ export default function DocumentList({
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${categoryColors[doc.category] ?? 'bg-gray-100 text-gray-600'}`}>
                     {doc.category}
                   </span>
+                  {doc.processing_status === 'pending' && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Queued</span>
+                  )}
+                  {doc.processing_status === 'processing' && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium animate-pulse">Processing...</span>
+                  )}
+                  {doc.processing_status === 'completed' && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">AI Ready</span>
+                  )}
+                  {doc.processing_status === 'failed' && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Failed</span>
+                  )}
                   <span className="text-xs text-gray-400">{formatFileSize(doc.file_size)}</span>
                   <span className="text-xs text-gray-400">
                     {new Date(doc.created_at).toLocaleDateString()}
