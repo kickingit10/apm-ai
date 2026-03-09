@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server'
 
 export const dynamic = 'force-dynamic'
 
+const debug = process.env.DEBUG === 'true'
+
 const SYSTEM_PROMPT = `You are APM.AI, an AI assistant for solar construction project managers. Answer questions based on the project documents provided. Always cite which document your answer comes from using the format [Document Name]. If the documents don't contain enough information to answer, say so honestly. Be concise and practical — these are busy construction professionals.`
 
 export async function POST(request: Request) {
@@ -29,7 +31,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'message and projectId required' }, { status: 400 })
     }
 
-    console.log(`[RAG] START user=${user.id} project=${projectId} (type=${typeof projectId}) query="${message.slice(0, 60)}"`)
+    if (debug) console.log(`[RAG] START user=${user.id} project=${projectId} (type=${typeof projectId}) query="${message.slice(0, 60)}"`)
 
     // Create or use existing session
     let sessionId = existingSessionId
@@ -61,29 +63,31 @@ export async function POST(request: Request) {
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    console.log(`[RAG] OpenAI embedding: type=${typeof queryEmbedding} isArray=${Array.isArray(queryEmbedding)} len=${queryEmbedding?.length} first3=[${queryEmbedding?.slice(0, 3).join(', ')}]`)
+    if (debug) console.log(`[RAG] OpenAI embedding: type=${typeof queryEmbedding} isArray=${Array.isArray(queryEmbedding)} len=${queryEmbedding?.length} first3=[${queryEmbedding?.slice(0, 3).join(', ')}]`)
 
-    // Diagnostic: can the server client see document_chunks at all?
-    const { count: chunkCount, error: countError } = await supabase
-      .from('document_chunks')
-      .select('id', { count: 'exact', head: true })
+    if (debug) {
+      // Diagnostic: can the server client see document_chunks at all?
+      const { count: chunkCount, error: countError } = await supabase
+        .from('document_chunks')
+        .select('id', { count: 'exact', head: true })
 
-    console.log(`[RAG] Diagnostic: document_chunks visible=${chunkCount} error=${countError?.message ?? 'none'}`)
+      console.log(`[RAG] Diagnostic: document_chunks visible=${chunkCount} error=${countError?.message ?? 'none'}`)
 
-    // Diagnostic: verify projectId matches documents
-    const { data: projectDocs, error: projectDocsError } = await supabase
-      .from('documents')
-      .select('id, project_id')
-      .eq('project_id', projectId)
-      .limit(1)
+      // Diagnostic: verify projectId matches documents
+      const { data: projectDocs, error: projectDocsError } = await supabase
+        .from('documents')
+        .select('id, project_id')
+        .eq('project_id', projectId)
+        .limit(1)
 
-    console.log(`[RAG] Diagnostic: docs for project=${projectDocs?.length ?? 0} error=${projectDocsError?.message ?? 'none'}`)
+      console.log(`[RAG] Diagnostic: docs for project=${projectDocs?.length ?? 0} error=${projectDocsError?.message ?? 'none'}`)
+    }
 
     // Get the user's session token for direct REST API call
     const { data: { session: authSession } } = await supabase.auth.getSession()
     const accessToken = authSession?.access_token
 
-    console.log(`[RAG] Auth session: hasToken=${!!accessToken}`)
+    if (debug) console.log(`[RAG] Auth session: hasToken=${!!accessToken}`)
 
     // Bypass supabase.rpc() — use direct fetch to Supabase REST API
     // supabase.rpc() returns empty results for unknown reasons, but
@@ -100,21 +104,23 @@ export async function POST(request: Request) {
     const rpcUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/match_document_chunks`
 
     if (accessToken) {
-      // Diagnostic: check top similarity score with threshold 0.0
-      const diagResponse = await fetch(rpcUrl, {
-        method: 'POST',
-        headers: rpcHeaders,
-        body: JSON.stringify({
-          query_embedding: embeddingStr,
-          match_project_id: projectId,
-          match_threshold: 0.0,
-          match_count: 1,
-        }),
-      })
-      if (diagResponse.ok) {
-        const diagChunks = await diagResponse.json()
-        const topSim = diagChunks[0]?.similarity ?? 'none'
-        console.log(`[RAG] Diagnostic: top_similarity=${topSim} (threshold=0.0, count=1)`)
+      if (debug) {
+        // Diagnostic: check top similarity score with threshold 0.0
+        const diagResponse = await fetch(rpcUrl, {
+          method: 'POST',
+          headers: rpcHeaders,
+          body: JSON.stringify({
+            query_embedding: embeddingStr,
+            match_project_id: projectId,
+            match_threshold: 0.0,
+            match_count: 1,
+          }),
+        })
+        if (diagResponse.ok) {
+          const diagChunks = await diagResponse.json()
+          const topSim = diagChunks[0]?.similarity ?? 'none'
+          console.log(`[RAG] Diagnostic: top_similarity=${topSim} (threshold=0.0, count=1)`)
+        }
       }
 
       // Main query with threshold 0.3
@@ -125,15 +131,15 @@ export async function POST(request: Request) {
           query_embedding: embeddingStr,
           match_project_id: projectId,
           match_threshold: 0.3,
-          match_count: 5,
+          match_count: 10,
         }),
       })
 
-      console.log(`[RAG] Direct REST API: status=${rpcResponse.status}`)
+      if (debug) console.log(`[RAG] Direct REST API: status=${rpcResponse.status}`)
 
       if (rpcResponse.ok) {
         chunks = await rpcResponse.json()
-        console.log(`[RAG] Direct REST API: chunks_found=${chunks.length}`)
+        if (debug) console.log(`[RAG] Direct REST API: chunks_found=${chunks.length}`)
       } else {
         const errText = await rpcResponse.text()
         console.error(`[RAG] Direct REST API error: ${errText}`)
@@ -144,7 +150,7 @@ export async function POST(request: Request) {
         query_embedding: embeddingStr,
         match_project_id: projectId,
         match_threshold: 0.3,
-        match_count: 5,
+        match_count: 10,
       })
       if (rpcError) {
         console.error('[RAG] supabase.rpc() error:', rpcError)
@@ -152,7 +158,7 @@ export async function POST(request: Request) {
       chunks = rpcChunks ?? []
     }
 
-    console.log(`[RAG] RESULT: ${chunks.length} chunks found`)
+    if (debug) console.log(`[RAG] RESULT: ${chunks.length} chunks found`)
 
     // Build context from chunks
     let context = ''

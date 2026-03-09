@@ -65,11 +65,17 @@ export default function DocumentList({
   async function handleDownload(doc: Document) {
     const { data, error } = await supabase.storage
       .from('documents')
-      .createSignedUrl(doc.storage_path, 60)
+      .createSignedUrl(doc.storage_path, 300, { download: doc.file_name })
 
-    if (!error && data?.signedUrl) {
-      window.open(data.signedUrl, '_blank')
+    if (error || !data?.signedUrl) {
+      alert(`Download failed: ${error?.message ?? 'Could not generate download link'}`)
+      return
     }
+
+    const link = document.createElement('a')
+    link.href = data.signedUrl
+    link.download = doc.file_name
+    link.click()
   }
 
   async function handleDelete(doc: Document) {

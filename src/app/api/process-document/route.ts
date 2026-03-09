@@ -5,6 +5,8 @@ import { NextResponse } from 'next/server'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120 // Allow up to 2 minutes for OCR processing
 
+const debug = process.env.DEBUG === 'true'
+
 function chunkText(text: string, maxTokens = 500, overlapTokens = 50): string[] {
   const maxChars = maxTokens * 4
   const overlapChars = overlapTokens * 4
@@ -111,7 +113,7 @@ async function extractText(buffer: Buffer, fileName: string): Promise<string> {
     }
 
     // Scanned/image PDF — OCR the whole file as one image
-    console.log(`[Extract] PDF text too short (${text.length} chars), falling back to OCR`)
+    if (debug) console.log(`[Extract] PDF text too short (${text.length} chars), falling back to OCR`)
     const base64 = buffer.toString('base64')
     const ocrText = await ocrWithVision(base64, 'application/pdf')
     return ocrText || text // Return whatever we got
@@ -202,7 +204,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'No text could be extracted from this file', chunks: 0 }, { status: 200 })
     }
 
-    console.log(`[Process] Extracted ${text.length} chars from ${fileName}`)
+    if (debug) console.log(`[Process] Extracted ${text.length} chars from ${fileName}`)
 
     // Chunk the text
     const chunks = chunkText(text)
@@ -228,7 +230,7 @@ export async function POST(request: Request) {
     // Mark as ready
     await supabase.from('documents').update({ processing_status: 'ready' }).eq('id', documentId)
 
-    console.log(`[Process] Complete: ${fileName} → ${chunks.length} chunks`)
+    if (debug) console.log(`[Process] Complete: ${fileName} → ${chunks.length} chunks`)
     return NextResponse.json({ message: 'Processing complete', chunks: chunks.length })
   } catch (error) {
     console.error('[Process] Pipeline error:', documentId, error)
