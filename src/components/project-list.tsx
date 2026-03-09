@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import Link from 'next/link'
+
 type Project = {
   id: string
   project_number: string
@@ -107,9 +109,10 @@ export default function ProjectList({ projects: initialProjects }: { projects: P
       ) : (
         <div className="grid gap-3">
           {projects.map((project) => (
-            <div
+            <Link
+              href={`/project/${project.id}`}
               key={project.id}
-              className="bg-white border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors cursor-pointer"
+              className="block bg-white border border-gray-200 rounded-lg p-4 hover:border-blue-300 hover:shadow-sm transition-all"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -130,7 +133,7 @@ export default function ProjectList({ projects: initialProjects }: { projects: P
                   {new Date(project.created_at).toLocaleDateString()}
                 </span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       )}
