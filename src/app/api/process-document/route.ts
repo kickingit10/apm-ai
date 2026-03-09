@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       // No extractable text (e.g., images)
       await supabase
         .from('documents')
-        .update({ processing_status: 'completed' })
+        .update({ processing_status: 'ready' })
         .eq('id', documentId)
       return NextResponse.json({ message: 'No text to extract', chunks: 0 })
     }
@@ -137,7 +137,7 @@ export async function POST(request: Request) {
     // Mark as completed
     await supabase
       .from('documents')
-      .update({ processing_status: 'completed' })
+      .update({ processing_status: 'ready' })
       .eq('id', documentId)
 
     return NextResponse.json({ message: 'Processing complete', chunks: chunks.length })

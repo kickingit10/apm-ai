@@ -141,7 +141,7 @@ export default function DocumentList({
                   {doc.processing_status === 'processing' && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium animate-pulse">Processing...</span>
                   )}
-                  {doc.processing_status === 'completed' && (
+                  {(doc.processing_status === 'completed' || doc.processing_status === 'ready') && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">AI Ready</span>
                   )}
                   {doc.processing_status === 'failed' && (

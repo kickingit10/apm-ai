@@ -79,7 +79,7 @@ export default function DocumentUpload({ projectId, userId }: { projectId: strin
         category,
         storage_path: storagePath,
         file_size: file.size,
-        processing_status: 'pending',
+        processing_status: 'pending' as const,
         uploaded_by: userId,
       }).select().single()
 
@@ -100,8 +100,12 @@ export default function DocumentUpload({ projectId, userId }: { projectId: strin
           fileType: getFileType(file.name),
           category,
         }),
-      }).catch(() => {
-        // Processing happens in background — errors logged server-side
+      }).then((res) => {
+        if (res && !res.ok) {
+          console.warn(`Document processing failed for ${file.name} (status ${res.status})`)
+        }
+      }).catch((err) => {
+        console.warn('Document processing request failed:', err)
       })
     }
 
