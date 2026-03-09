@@ -6,7 +6,7 @@ An AI-powered project management tool built for solar and energy EPC contractors
 
 ## Why This Exists
 
-Solar construction PMs at mid-size EPCs (10–75 employees) manage projects with spreadsheets, WhatsApp, and email. When they need to find a specific permit condition or RFI response, they dig through folders and PDFs manually. ChatGPT was tried but hallucinated numbers and dates. APM.AI solves this by searching actual project documents before answering, so every response is traceable to a source.
+Solar construction PMs at mid-size EPCs (10–75 employees) manage projects with spreadsheets, WhatsApp, and email. When they need to find a specific permit condition or RFI response, they dig through folders and PDFs manually. APM.AI solves this by organizing documents by solar construction category and letting you ask AI questions that search your actual documents before answering — so every response is traceable to a source.
 
 ## Tech Stack
 
@@ -16,7 +16,7 @@ Solar construction PMs at mid-size EPCs (10–75 employees) manage projects with
 | Auth | Supabase Auth | Email/password authentication with session cookies |
 | Database | Supabase (PostgreSQL 17) + pgvector | Data storage + vector similarity search for RAG |
 | Storage | Supabase Storage | Private bucket for uploaded project documents |
-| AI (Phase 3) | OpenAI embeddings + Anthropic Claude chat | Document chunking → vector search → grounded answers |
+| AI | OpenAI embeddings + Anthropic Claude chat | Document chunking → vector search → grounded answers |
 | Hosting | Vercel | Auto-deploy from GitHub on every push to main |
 
 ## Project Structure
@@ -32,92 +32,78 @@ src/
 │   │   └── layout.tsx        # Force dynamic rendering
 │   ├── dashboard/
 │   │   └── page.tsx          # Project list (server component)
+│   ├── project/
+│   │   └── [id]/
+│   │       └── page.tsx      # Project detail with documents + chat
 │   └── auth/
 │       └── callback/
 │           └── route.ts      # Email confirmation handler
 ├── components/
 │   ├── header.tsx            # Nav bar with sign-out
-│   └── project-list.tsx      # Project cards + create form
+│   ├── project-list.tsx      # Project cards + create form
+│   ├── document-upload.tsx   # Drag-and-drop file upload with category picker
+│   └── document-list.tsx     # Document table with download, delete, category badges
 ├── lib/
+│   ├── categories.ts         # 13 solar construction document categories
 │   └── supabase/
 │       ├── client.ts         # Browser Supabase client
 │       ├── server.ts         # Server Supabase client
 │       └── middleware.ts      # Session refresh + auth redirects
 └── middleware.ts              # Route protection
-supabase/
-└── migrations/
-    └── 00001_initial_schema.sql  # 5 tables, RLS, pgvector, search function
 ```
 
 ## Database Schema
 
-5 tables with Row Level Security (RLS) enabled on all:
+```sql
+-- 5 tables with Row Level Security enabled on all
 
-- **projects** — Solar construction projects (name, location, owner)
-- **documents** — Uploaded files linked to projects, categorized (permits, RFIs, daily logs, etc.)
-- **document_chunks** — Text chunks with vector embeddings (1536-dim) for semantic search
-- **chat_sessions** — AI chat conversations per project
-- **chat_messages** — Messages with role (user/assistant) and source citations (JSONB)
+projects (id, name, project_number, status, location, description, owner_id)
+documents (id, project_id, file_name, category, storage_path, file_type, file_size, uploaded_by)
+document_chunks (id, document_id, content, chunk_index, embedding vector(1536), metadata jsonb)
+chat_sessions (id, project_id, user_id, title)
+chat_messages (id, session_id, role, content, sources jsonb)
 
-Custom function: `match_document_chunks(query_embedding, match_count, filter_project_id)` — cosine similarity search over document chunks.
+-- Vector search function for RAG
+match_document_chunks(query_embedding, match_project_id, match_threshold, match_count)
+```
+
+## Document Categories
+
+Solar construction categories (from domain expert's information architecture):
+
+Action List, Permits, Daily Logs, RFIs, Submittals, Safety, Quality, Commissioning, Interconnection, Contracts, Change Orders, Photos, Other
+
+## Build Phases
+
+| Phase | Features | Status |
+|-------|----------|--------|
+| 1 | Auth, project list, database schema, deployment | Complete |
+| 2 | Document upload, category organization, project detail page | Complete |
+| 3 | RAG pipeline, AI chat with citations, starter prompts | In Progress |
+| 4 | Daily construction logs, photo uploads, weather auto-fill, PDF export | Planned |
+
+## Environment Variables
+
+```
+NEXT_PUBLIC_SUPABASE_URL=       # Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=  # Supabase anonymous key
+OPENAI_API_KEY=                 # OpenAI (for embeddings)
+ANTHROPIC_API_KEY=              # Anthropic (for Claude chat)
+```
 
 ## Getting Started
-
-### Prerequisites
-- Node.js 20+
-- Supabase account with a project
-- (Phase 3) OpenAI API key + Anthropic API key
-
-### Setup
 
 ```bash
 git clone https://github.com/kickingit10/apm-ai.git
 cd apm-ai
 npm install
-cp .env.local.example .env.local
-# Fill in your Supabase URL and anon key in .env.local
+# Add environment variables to .env.local
 npm run dev
+# Open http://localhost:3000
 ```
 
-Then run the migration in your Supabase SQL Editor:
-```sql
--- Paste contents of supabase/migrations/00001_initial_schema.sql
-```
+## Demo Account
 
-### Environment Variables
+For demonstrations: Contact
 
-```
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-OPENAI_API_KEY=your-openai-key          # Phase 3
-ANTHROPIC_API_KEY=your-anthropic-key     # Phase 3
-```
-
-## Build Phases
-
-| Phase | What | Status |
-|-------|------|--------|
-| 1 | Auth, database, project dashboard, deployment | ✅ Complete |
-| 2 | Document upload, category organization, storage | 🔜 Next |
-| 3 | RAG pipeline: chunking → embeddings → vector search → AI chat with citations | 📋 Planned |
-| 4 | Google Drive sync, daily logs, mobile optimization | 📋 Planned |
-
-## Contributing
-
-This is an early-stage project. If you want to help:
-
-1. Check the build phases above — Phase 2 (document upload + library) is the current priority
-2. The document categories follow a solar construction information architecture (permits, RFIs, daily logs, submittals, commissioning docs, etc.)
-3. All AI responses must include source citations — no exceptions
-4. Mobile-responsive from the start (Tailwind breakpoints)
-5. TypeScript strict mode
-
-### Key decisions already made:
-- OpenAI `text-embedding-3-small` for embeddings (1536 dimensions)
-- Anthropic Claude for chat responses (better at following citation instructions)
-- Supabase pgvector for vector storage/search (no separate vector DB needed)
-- Next.js App Router with server components for the dashboard
-
-## License
-
-Private — not open source (yet).
+Includes 5 sample solar projects with realistic construction documents.
