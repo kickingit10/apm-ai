@@ -92,24 +92,42 @@ export async function POST(request: Request) {
 
     let chunks: { id: string; document_id: string; content: string; metadata: Record<string, string>; similarity: number }[] = []
 
+    const rpcHeaders = {
+      'Content-Type': 'application/json',
+      'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      'Authorization': `Bearer ${accessToken}`,
+    }
+    const rpcUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/match_document_chunks`
+
     if (accessToken) {
-      const rpcResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/match_document_chunks`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-            'Authorization': `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            query_embedding: embeddingStr,
-            match_project_id: projectId,
-            match_threshold: 0.7,
-            match_count: 5,
-          }),
-        }
-      )
+      // Diagnostic: check top similarity score with threshold 0.0
+      const diagResponse = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: rpcHeaders,
+        body: JSON.stringify({
+          query_embedding: embeddingStr,
+          match_project_id: projectId,
+          match_threshold: 0.0,
+          match_count: 1,
+        }),
+      })
+      if (diagResponse.ok) {
+        const diagChunks = await diagResponse.json()
+        const topSim = diagChunks[0]?.similarity ?? 'none'
+        console.log(`[RAG] Diagnostic: top_similarity=${topSim} (threshold=0.0, count=1)`)
+      }
+
+      // Main query with threshold 0.3
+      const rpcResponse = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: rpcHeaders,
+        body: JSON.stringify({
+          query_embedding: embeddingStr,
+          match_project_id: projectId,
+          match_threshold: 0.3,
+          match_count: 5,
+        }),
+      })
 
       console.log(`[RAG] Direct REST API: status=${rpcResponse.status}`)
 
@@ -122,11 +140,10 @@ export async function POST(request: Request) {
       }
     } else {
       console.error('[RAG] No access token available — falling back to supabase.rpc()')
-      // Fallback to supabase.rpc() if we can't get the token
       const { data: rpcChunks, error: rpcError } = await supabase.rpc('match_document_chunks', {
         query_embedding: embeddingStr,
         match_project_id: projectId,
-        match_threshold: 0.7,
+        match_threshold: 0.3,
         match_count: 5,
       })
       if (rpcError) {
