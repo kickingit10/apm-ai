@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import ReactMarkdown from 'react-markdown'
 
 type Message = {
   id: string
@@ -148,7 +149,10 @@ export default function ChatPanel({
     }`}>
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-100 shrink-0">
-        <h2 className="text-lg font-semibold text-gray-900">AI Chat</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-gray-900">JIM</h2>
+          <p className="text-xs text-gray-400 -mt-0.5">Jobsite Information Manager</p>
+        </div>
         <div className="flex items-center gap-2">
           {sessions.length > 0 && (
             <button
@@ -198,7 +202,7 @@ export default function ChatPanel({
         {messages.length === 0 && !loading ? (
           <div className="space-y-3">
             <p className="text-sm text-gray-400 text-center mb-4">
-              Ask a question about your project documents
+              Ask JIM about your project documents
             </p>
             <div className="grid grid-cols-1 gap-2">
               {STARTER_PROMPTS.map((prompt) => (
@@ -226,7 +230,13 @@ export default function ChatPanel({
                       : 'bg-gray-100 text-gray-800'
                   }`}
                 >
-                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {msg.role === 'user' ? (
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  ) : (
+                    <div className="prose prose-sm max-w-none prose-headings:text-gray-900 prose-headings:font-semibold prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-li:my-0.5 prose-ul:my-1 prose-ol:my-1 prose-strong:text-gray-900">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  )}
                   {msg.sources && msg.sources.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-2 pt-2 border-t border-gray-200/50">
                       {msg.sources.map((source, i) => (
@@ -267,7 +277,7 @@ export default function ChatPanel({
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask about your project documents..."
+            placeholder="Ask JIM about your project..."
             disabled={loading}
             className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
             onFocus={() => setExpanded(true)}
