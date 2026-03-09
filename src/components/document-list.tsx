@@ -50,6 +50,7 @@ export default function DocumentList({
   const [documents, setDocuments] = useState(initialDocuments)
   const [activeFilter, setActiveFilter] = useState<string>('All')
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [retrying, setRetrying] = useState<string | null>(null)
   const supabase = createClient()
   const router = useRouter()
 
@@ -82,6 +83,40 @@ export default function DocumentList({
     setDocuments(documents.filter((d) => d.id !== doc.id))
     setDeleting(null)
     router.refresh()
+  }
+
+  async function handleRetry(doc: Document) {
+    setRetrying(doc.id)
+    setDocuments((prev) =>
+      prev.map((d) => d.id === doc.id ? { ...d, processing_status: 'processing' } : d)
+    )
+
+    try {
+      const res = await fetch('/api/process-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          documentId: doc.id,
+          storagePath: doc.storage_path,
+          fileName: doc.file_name,
+          fileType: doc.file_type,
+          category: doc.category,
+        }),
+      })
+
+      setDocuments((prev) =>
+        prev.map((d) => d.id === doc.id
+          ? { ...d, processing_status: res.ok ? 'ready' : 'failed' }
+          : d
+        )
+      )
+    } catch {
+      setDocuments((prev) =>
+        prev.map((d) => d.id === doc.id ? { ...d, processing_status: 'failed' } : d)
+      )
+    } finally {
+      setRetrying(null)
+    }
   }
 
   return (
@@ -148,6 +183,23 @@ export default function DocumentList({
                   )}
                   {doc.processing_status === 'failed' && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Processing Failed</span>
+                  )}
+                  {(doc.processing_status === 'pending' || doc.processing_status === 'queued' || doc.processing_status === 'failed') && (
+                    <button
+                      onClick={() => handleRetry(doc)}
+                      disabled={retrying === doc.id}
+                      className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-0.5 rounded hover:bg-blue-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {retrying === doc.id ? (
+                        <span className="inline-flex items-center gap-1">
+                          <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                          Retrying
+                        </span>
+                      ) : 'Retry'}
+                    </button>
                   )}
                   <span className="text-xs text-gray-400">{formatFileSize(doc.file_size)}</span>
                   <span className="text-xs text-gray-400">
