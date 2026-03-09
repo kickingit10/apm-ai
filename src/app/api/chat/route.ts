@@ -29,6 +29,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'message and projectId required' }, { status: 400 })
     }
 
+    console.log(`[RAG] START user=${user.id} project=${projectId} (type=${typeof projectId}) query="${message.slice(0, 60)}"`)
+
     // Create or use existing session
     let sessionId = existingSessionId
     if (!sessionId) {
@@ -59,38 +61,93 @@ export async function POST(request: Request) {
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
-    // Convert embedding array to PostgreSQL vector string literal
-    // supabase-js sends JS arrays as JSON which PostgREST may not
-    // properly cast to the pgvector `vector` type, causing silent
-    // empty results from cosine similarity comparisons
+    console.log(`[RAG] OpenAI embedding: type=${typeof queryEmbedding} isArray=${Array.isArray(queryEmbedding)} len=${queryEmbedding?.length} first3=[${queryEmbedding?.slice(0, 3).join(', ')}]`)
+
+    // Diagnostic: can the server client see document_chunks at all?
+    const { count: chunkCount, error: countError } = await supabase
+      .from('document_chunks')
+      .select('id', { count: 'exact', head: true })
+
+    console.log(`[RAG] Diagnostic: document_chunks visible=${chunkCount} error=${countError?.message ?? 'none'}`)
+
+    // Diagnostic: verify projectId matches documents
+    const { data: projectDocs, error: projectDocsError } = await supabase
+      .from('documents')
+      .select('id, project_id')
+      .eq('project_id', projectId)
+      .limit(1)
+
+    console.log(`[RAG] Diagnostic: docs for project=${projectDocs?.length ?? 0} error=${projectDocsError?.message ?? 'none'}`)
+
+    // Get the user's session token for direct REST API call
+    const { data: { session: authSession } } = await supabase.auth.getSession()
+    const accessToken = authSession?.access_token
+
+    console.log(`[RAG] Auth session: hasToken=${!!accessToken}`)
+
+    // Bypass supabase.rpc() — use direct fetch to Supabase REST API
+    // supabase.rpc() returns empty results for unknown reasons, but
+    // direct REST API calls to the same function work perfectly
     const embeddingStr = `[${queryEmbedding.join(',')}]`
 
-    // Find relevant document chunks
-    const { data: chunks, error: rpcError } = await supabase.rpc('match_document_chunks', {
-      query_embedding: embeddingStr,
-      match_project_id: projectId,
-      match_threshold: 0.7,
-      match_count: 5,
-    })
+    let chunks: { id: string; document_id: string; content: string; metadata: Record<string, string>; similarity: number }[] = []
 
-    if (rpcError) {
-      console.error('RPC error:', rpcError)
+    if (accessToken) {
+      const rpcResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/rpc/match_document_chunks`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            'Authorization': `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            query_embedding: embeddingStr,
+            match_project_id: projectId,
+            match_threshold: 0.7,
+            match_count: 5,
+          }),
+        }
+      )
+
+      console.log(`[RAG] Direct REST API: status=${rpcResponse.status}`)
+
+      if (rpcResponse.ok) {
+        chunks = await rpcResponse.json()
+        console.log(`[RAG] Direct REST API: chunks_found=${chunks.length}`)
+      } else {
+        const errText = await rpcResponse.text()
+        console.error(`[RAG] Direct REST API error: ${errText}`)
+      }
+    } else {
+      console.error('[RAG] No access token available — falling back to supabase.rpc()')
+      // Fallback to supabase.rpc() if we can't get the token
+      const { data: rpcChunks, error: rpcError } = await supabase.rpc('match_document_chunks', {
+        query_embedding: embeddingStr,
+        match_project_id: projectId,
+        match_threshold: 0.7,
+        match_count: 5,
+      })
+      if (rpcError) {
+        console.error('[RAG] supabase.rpc() error:', rpcError)
+      }
+      chunks = rpcChunks ?? []
     }
 
-    console.log(`[RAG] query="${message.slice(0, 50)}" project=${projectId} embedding_len=${queryEmbedding.length} chunks_found=${chunks?.length ?? 0} rpc_error=${rpcError?.message ?? 'none'}`)
+    console.log(`[RAG] RESULT: ${chunks.length} chunks found`)
 
     // Build context from chunks
-    const relevantChunks = chunks ?? []
     let context = ''
     const sources: { file_name: string; category: string; chunk_index: number }[] = []
 
-    for (const chunk of relevantChunks) {
+    for (const chunk of chunks) {
       const meta = chunk.metadata ?? {}
       const fileName = meta.file_name ?? 'Unknown document'
       const category = meta.category ?? 'Uncategorized'
       context += `\n---\nDocument: ${fileName} (${category})\n${chunk.content}\n`
       if (!sources.find((s) => s.file_name === fileName)) {
-        sources.push({ file_name: fileName, category, chunk_index: meta.chunk_index ?? 0 })
+        sources.push({ file_name: fileName, category, chunk_index: Number(meta.chunk_index ?? 0) })
       }
     }
 
