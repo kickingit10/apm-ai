@@ -11,6 +11,7 @@ export default function DocumentUpload({ projectId, userId }: { projectId: strin
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [warning, setWarning] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const supabase = createClient()
   const router = useRouter()
@@ -45,8 +46,8 @@ export default function DocumentUpload({ projectId, userId }: { projectId: strin
     const typeMap: Record<string, string> = {
       pdf: 'pdf', docx: 'docx', doc: 'docx',
       xlsx: 'xlsx', xls: 'xlsx', csv: 'csv',
-      png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image',
-      txt: 'text',
+      png: 'image', jpg: 'image', jpeg: 'image', gif: 'image', webp: 'image', heic: 'image',
+      txt: 'text', msg: 'msg',
     }
     return typeMap[ext] ?? 'other'
   }
@@ -100,12 +101,15 @@ export default function DocumentUpload({ projectId, userId }: { projectId: strin
           fileType: getFileType(file.name),
           category,
         }),
-      }).then((res) => {
+      }).then(async (res) => {
         if (res && !res.ok) {
-          console.warn(`Document processing failed for ${file.name} (status ${res.status})`)
+          const detail = await res.text().catch(() => '')
+          console.warn(`Document processing failed for ${file.name} (status ${res.status}): ${detail}`)
+          setWarning(`"${file.name}" uploaded but AI processing failed. You can retry later.`)
         }
       }).catch((err) => {
         console.warn('Document processing request failed:', err)
+        setWarning(`"${file.name}" uploaded but AI processing failed. You can retry later.`)
       })
     }
 
@@ -121,6 +125,10 @@ export default function DocumentUpload({ projectId, userId }: { projectId: strin
 
       {error && (
         <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md mb-3">{error}</div>
+      )}
+
+      {warning && (
+        <div className="bg-yellow-50 text-yellow-700 text-sm p-3 rounded-md mb-3">{warning}</div>
       )}
 
       {/* Drop zone */}

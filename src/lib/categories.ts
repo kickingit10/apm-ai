@@ -10,6 +10,8 @@ export const DOCUMENT_CATEGORIES = [
   'Interconnection',
   'Contracts',
   'Change Orders',
+  'Drawings',
+  'Communications',
   'Photos',
   'Other',
 ] as const

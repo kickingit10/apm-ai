@@ -35,6 +35,8 @@ const categoryColors: Record<string, string> = {
   'Interconnection': 'bg-yellow-100 text-yellow-700',
   'Contracts': 'bg-slate-100 text-slate-700',
   'Change Orders': 'bg-pink-100 text-pink-700',
+  'Drawings': 'bg-amber-100 text-amber-700',
+  'Communications': 'bg-violet-100 text-violet-700',
   'Photos': 'bg-emerald-100 text-emerald-700',
   'Other': 'bg-gray-100 text-gray-600',
 }
@@ -135,17 +137,17 @@ export default function DocumentList({
                   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${categoryColors[doc.category] ?? 'bg-gray-100 text-gray-600'}`}>
                     {doc.category}
                   </span>
-                  {doc.processing_status === 'pending' && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium">Queued</span>
+                  {(doc.processing_status === 'pending' || doc.processing_status === 'queued') && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 font-medium">Queued</span>
                   )}
                   {doc.processing_status === 'processing' && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium animate-pulse">Processing...</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700 font-medium animate-pulse">Processing</span>
                   )}
-                  {(doc.processing_status === 'completed' || doc.processing_status === 'ready') && (
+                  {doc.processing_status === 'ready' && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">AI Ready</span>
                   )}
                   {doc.processing_status === 'failed' && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Failed</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">Processing Failed</span>
                   )}
                   <span className="text-xs text-gray-400">{formatFileSize(doc.file_size)}</span>
                   <span className="text-xs text-gray-400">
