@@ -1,95 +1,70 @@
 # APM.AI — AI-Powered Document Hub for Solar Construction
 
-An AI-powered project management tool built for solar and energy EPC contractors. Upload project documents, organize them by category, and chat with an AI assistant that answers questions grounded in your actual documents — with source citations on every response.
+Upload project documents, organize them by category, and chat with an AI that answers questions from your actual files — with source citations on every response.
 
 **Live at:** [apm-ai-five.vercel.app](https://apm-ai-five.vercel.app)
 
-## Why This Exists
+## The Problem
 
-Solar construction PMs at mid-size EPCs (10–75 employees) manage projects with spreadsheets, WhatsApp, and email. When they need to find a specific permit condition or RFI response, they dig through folders and PDFs manually. APM.AI solves this by organizing documents by solar construction category and letting you ask AI questions that search your actual documents before answering — so every response is traceable to a source.
+Solar construction PMs at mid-size EPCs manage projects with spreadsheets, WhatsApp, and shared drives. Finding a specific permit condition or RFI response means digging through folders manually. APM.AI organizes documents by solar construction category and uses RAG (Retrieval-Augmented Generation) so you can ask questions and get answers grounded in your actual project documents.
+
+## What It Does
+
+- **Document management** — Upload PDFs, Word docs, and text files. Organize by 13 solar construction categories (RFIs, Submittals, Safety, Daily Logs, Permits, etc.).
+- **AI chat with citations** — Ask questions about your project. The AI searches your documents, finds relevant sections, and responds with source citations you can verify.
+- **Project isolation** — Row Level Security ensures each user only sees their own projects and documents.
+
+## How the AI Works
+
+1. When you upload a document, it gets split into ~500-token chunks
+2. Each chunk is converted to a vector embedding (OpenAI text-embedding-3-small)
+3. Embeddings are stored in PostgreSQL via pgvector
+4. When you ask a question, your question is embedded and compared against all chunks using cosine similarity
+5. The most relevant chunks are sent to Claude along with your question
+6. Claude generates an answer citing the specific documents it used
 
 ## Tech Stack
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Frontend | Next.js 14, React 18, TypeScript, Tailwind CSS | Server-rendered web app with App Router |
-| Auth | Supabase Auth | Email/password authentication with session cookies |
-| Database | Supabase (PostgreSQL 17) + pgvector | Data storage + vector similarity search for RAG |
-| Storage | Supabase Storage | Private bucket for uploaded project documents |
-| AI | OpenAI embeddings + Anthropic Claude chat | Document chunking → vector search → grounded answers |
-| Hosting | Vercel | Auto-deploy from GitHub on every push to main |
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Next.js 14, TypeScript, Tailwind CSS |
+| Auth | Supabase Auth (email/password) |
+| Database | Supabase PostgreSQL + pgvector |
+| File Storage | Supabase Storage |
+| Embeddings | OpenAI text-embedding-3-small |
+| Chat | Anthropic Claude |
+| Hosting | Vercel |
 
 ## Project Structure
 
 ```
 src/
 ├── app/
-│   ├── page.tsx              # Root redirect → /dashboard
-│   ├── layout.tsx            # Root layout (fonts, metadata)
-│   ├── globals.css           # Tailwind imports
-│   ├── login/
-│   │   ├── page.tsx          # Login/signup form
-│   │   └── layout.tsx        # Force dynamic rendering
-│   ├── dashboard/
-│   │   └── page.tsx          # Project list (server component)
-│   ├── project/
-│   │   └── [id]/
-│   │       └── page.tsx      # Project detail with documents + chat
-│   └── auth/
-│       └── callback/
-│           └── route.ts      # Email confirmation handler
+│   ├── login/page.tsx           # Login/signup with hero section
+│   ├── dashboard/page.tsx       # Project list
+│   ├── project/[id]/page.tsx    # Project detail: documents + AI chat
+│   ├── auth/callback/route.ts   # Email confirmation handler
+│   └── api/
+│       ├── chat/route.ts        # RAG chat endpoint
+│       └── process-document/route.ts  # Text extraction + chunking + embedding
 ├── components/
-│   ├── header.tsx            # Nav bar with sign-out
-│   ├── project-list.tsx      # Project cards + create form
-│   ├── document-upload.tsx   # Drag-and-drop file upload with category picker
-│   └── document-list.tsx     # Document table with download, delete, category badges
-├── lib/
-│   ├── categories.ts         # 13 solar construction document categories
-│   └── supabase/
-│       ├── client.ts         # Browser Supabase client
-│       ├── server.ts         # Server Supabase client
-│       └── middleware.ts      # Session refresh + auth redirects
-└── middleware.ts              # Route protection
+│   ├── project-list.tsx         # Project cards + create form
+│   ├── document-upload.tsx      # Drag-and-drop upload with category picker
+│   └── document-list.tsx        # Document table with status badges
+└── lib/
+    ├── categories.ts            # 13 solar construction document categories
+    └── supabase/                # Client and server Supabase helpers
 ```
 
-## Database Schema
+## Database
 
-```sql
--- 5 tables with Row Level Security enabled on all
+Five tables with Row Level Security on all:
 
-projects (id, name, project_number, status, location, description, owner_id)
-documents (id, project_id, file_name, category, storage_path, file_type, file_size, uploaded_by)
-document_chunks (id, document_id, content, chunk_index, embedding vector(1536), metadata jsonb)
-chat_sessions (id, project_id, user_id, title)
-chat_messages (id, session_id, role, content, sources jsonb)
-
--- Vector search function for RAG
-match_document_chunks(query_embedding, match_project_id, match_threshold, match_count)
-```
-
-## Document Categories
-
-Solar construction categories (from domain expert's information architecture):
-
-Action List, Permits, Daily Logs, RFIs, Submittals, Safety, Quality, Commissioning, Interconnection, Contracts, Change Orders, Photos, Other
-
-## Build Phases
-
-| Phase | Features | Status |
-|-------|----------|--------|
-| 1 | Auth, project list, database schema, deployment | Complete |
-| 2 | Document upload, category organization, project detail page | Complete |
-| 3 | RAG pipeline, AI chat with citations, starter prompts | In Progress |
-| 4 | Daily construction logs, photo uploads, weather auto-fill, PDF export | Planned |
-
-## Environment Variables
-
-```
-NEXT_PUBLIC_SUPABASE_URL=       # Supabase project URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY=  # Supabase anonymous key
-OPENAI_API_KEY=                 # OpenAI (for embeddings)
-ANTHROPIC_API_KEY=              # Anthropic (for Claude chat)
-```
+- **projects** — Solar construction projects (name, number, location, status)
+- **documents** — Uploaded file metadata (name, category, processing status)
+- **document_chunks** — Text chunks with 1536-dimension vector embeddings
+- **chat_sessions** — AI chat conversations per project
+- **chat_messages** — Messages with source citations (jsonb)
 
 ## Getting Started
 
@@ -97,13 +72,33 @@ ANTHROPIC_API_KEY=              # Anthropic (for Claude chat)
 git clone https://github.com/kickingit10/apm-ai.git
 cd apm-ai
 npm install
-# Add environment variables to .env.local
+```
+
+Create `.env.local`:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=       # Supabase project URL
+NEXT_PUBLIC_SUPABASE_ANON_KEY=  # Supabase anonymous key
+NEXT_PUBLIC_SITE_URL=           # Production URL (for auth redirects)
+OPENAI_API_KEY=                 # OpenAI (for embeddings)
+ANTHROPIC_API_KEY=              # Anthropic (for Claude chat)
+```
+
+```bash
 npm run dev
 # Open http://localhost:3000
 ```
 
-## Demo Account
+## Demo
 
-For demonstrations: Contact
+Try it with the demo account: `demo@apm-ai.com` / `demo1234`
 
-Includes 5 sample solar projects with realistic construction documents.
+Includes a sample solar farm project with 23 construction documents (daily logs, RFIs, submittals, safety reports, permits, and more) — all processed and ready for AI chat.
+
+## Target Users
+
+Mid-size solar EPCs (10–75 employees) managing 3–20 active projects. Competing with spreadsheets and WhatsApp, not Sitetracker or Procore.
+
+## License
+
+Private repository.
