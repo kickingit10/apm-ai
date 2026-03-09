@@ -41,6 +41,24 @@ const categoryColors: Record<string, string> = {
   'Other': 'bg-gray-100 text-gray-600',
 }
 
+const categoryBorderColors: Record<string, string> = {
+  'Action List': 'border-l-purple-400',
+  'Permits': 'border-l-blue-400',
+  'Daily Logs': 'border-l-green-400',
+  'RFIs': 'border-l-orange-400',
+  'Submittals': 'border-l-cyan-400',
+  'Safety': 'border-l-red-400',
+  'Quality': 'border-l-teal-400',
+  'Commissioning': 'border-l-indigo-400',
+  'Interconnection': 'border-l-yellow-400',
+  'Contracts': 'border-l-slate-400',
+  'Change Orders': 'border-l-pink-400',
+  'Drawings': 'border-l-amber-400',
+  'Communications': 'border-l-violet-400',
+  'Photos': 'border-l-emerald-400',
+  'Other': 'border-l-gray-400',
+}
+
 export default function DocumentList({
   initialDocuments,
 }: {
@@ -48,19 +66,21 @@ export default function DocumentList({
   projectId?: string
 }) {
   const [documents, setDocuments] = useState(initialDocuments)
-  const [activeFilter, setActiveFilter] = useState<string>('All')
+  const [activeFolder, setActiveFolder] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [retrying, setRetrying] = useState<string | null>(null)
   const supabase = createClient()
   const router = useRouter()
 
-  const filteredDocs = activeFilter === 'All'
-    ? documents
-    : documents.filter((d) => d.category === activeFilter)
+  const filteredDocs = activeFolder === null
+    ? []
+    : activeFolder === 'All'
+      ? documents
+      : documents.filter((d) => d.category === activeFolder)
 
-  // Only show category tabs that have documents
+  // Categories that have at least 1 document
   const activeCategorySet = new Set(documents.map((d) => d.category))
-  const filterTabs = ['All', ...DOCUMENT_CATEGORIES.filter((c) => activeCategorySet.has(c))]
+  const activeCategories = DOCUMENT_CATEGORIES.filter((c) => activeCategorySet.has(c))
 
   async function handleDownload(doc: Document) {
     const { data, error } = await supabase.storage
@@ -86,7 +106,15 @@ export default function DocumentList({
     await supabase.storage.from('documents').remove([doc.storage_path])
     await supabase.from('documents').delete().eq('id', doc.id)
 
-    setDocuments(documents.filter((d) => d.id !== doc.id))
+    setDocuments((prev) => {
+      const updated = prev.filter((d) => d.id !== doc.id)
+      // If we're inside a folder and it's now empty, go back to grid
+      if (activeFolder && activeFolder !== 'All') {
+        const remaining = updated.filter((d) => d.category === activeFolder)
+        if (remaining.length === 0) setActiveFolder(null)
+      }
+      return updated
+    })
     setDeleting(null)
     router.refresh()
   }
@@ -125,45 +153,80 @@ export default function DocumentList({
     }
   }
 
+  // ── View 1: Folder Grid ──
+  if (activeFolder === null) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          Documents
+          <span className="text-sm font-normal text-gray-400 ml-2">({documents.length})</span>
+        </h2>
+
+        {documents.length === 0 ? (
+          <div className="text-center py-8 text-gray-400">
+            <p className="text-sm">No documents uploaded yet.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+            {/* All Documents card */}
+            <button
+              onClick={() => setActiveFolder('All')}
+              className="border border-gray-200 border-l-4 border-l-blue-500 rounded-lg p-3 text-left hover:shadow-md hover:border-gray-300 transition-all"
+            >
+              <svg className="h-6 w-6 text-blue-500 mb-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+              </svg>
+              <p className="text-sm font-medium text-gray-900 truncate">All Documents</p>
+              <p className="text-xs text-gray-400 mt-0.5">{documents.length} file{documents.length !== 1 ? 's' : ''}</p>
+            </button>
+
+            {/* Category folder cards */}
+            {activeCategories.map((cat) => {
+              const count = documents.filter((d) => d.category === cat).length
+              return (
+                <button
+                  key={cat}
+                  onClick={() => setActiveFolder(cat)}
+                  className={`border border-gray-200 border-l-4 ${categoryBorderColors[cat] ?? 'border-l-gray-400'} rounded-lg p-3 text-left hover:shadow-md hover:border-gray-300 transition-all`}
+                >
+                  <svg className="h-6 w-6 text-gray-400 mb-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                  </svg>
+                  <p className="text-sm font-medium text-gray-900 truncate">{cat}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{count} file{count !== 1 ? 's' : ''}</p>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── View 2: Document List (inside a folder) ──
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-4 sm:p-6">
+      {/* Header with back button */}
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => setActiveFolder(null)}
+          className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+          </svg>
+          Back to folders
+        </button>
+      </div>
       <h2 className="text-lg font-semibold text-gray-900 mb-3">
-        Documents
-        <span className="text-sm font-normal text-gray-400 ml-2">({documents.length})</span>
+        {activeFolder === 'All' ? 'All Documents' : activeFolder}
+        <span className="text-sm font-normal text-gray-400 ml-2">({filteredDocs.length})</span>
       </h2>
-
-      {/* Category filter tabs */}
-      {documents.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-3 mb-3 border-b border-gray-100">
-          {filterTabs.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveFilter(tab)}
-              className={`text-xs font-medium px-3 py-1.5 rounded-full whitespace-nowrap transition-colors ${
-                activeFilter === tab
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-              }`}
-            >
-              {tab}
-              {tab !== 'All' && (
-                <span className="ml-1">
-                  ({documents.filter((d) => d.category === tab).length})
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Document rows */}
       {filteredDocs.length === 0 ? (
         <div className="text-center py-8 text-gray-400">
-          <p className="text-sm">
-            {documents.length === 0
-              ? 'No documents uploaded yet.'
-              : 'No documents in this category.'}
-          </p>
+          <p className="text-sm">No documents in this category.</p>
         </div>
       ) : (
         <div className="divide-y divide-gray-100">
