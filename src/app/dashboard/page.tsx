@@ -23,7 +23,7 @@ export default async function DashboardPage() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
         </div>
-        <ProjectList projects={projects ?? []} />
+        <ProjectList projects={projects ?? []} userId={user.id} />
       </main>
     </div>
   )

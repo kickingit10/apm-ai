@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { DOCUMENT_CATEGORIES } from '@/lib/categories'
 
-export default function DocumentUpload({ projectId }: { projectId: string }) {
+export default function DocumentUpload({ projectId, userId }: { projectId: string; userId: string }) {
   const [files, setFiles] = useState<File[]>([])
   const [category, setCategory] = useState<string>(DOCUMENT_CATEGORIES[0])
   const [uploading, setUploading] = useState(false)
@@ -80,6 +80,7 @@ export default function DocumentUpload({ projectId }: { projectId: string }) {
         storage_path: storagePath,
         file_size: file.size,
         processing_status: 'pending',
+        uploaded_by: userId,
       }).select().single()
 
       if (dbError || !docRecord) {

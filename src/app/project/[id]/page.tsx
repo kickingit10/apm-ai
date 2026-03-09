@@ -76,7 +76,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left column: Documents */}
           <div className="space-y-6">
-            <DocumentUpload projectId={project.id} />
+            <DocumentUpload projectId={project.id} userId={user.id} />
             <DocumentList initialDocuments={documents ?? []} />
           </div>
 

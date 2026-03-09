@@ -9,13 +9,18 @@ const SYSTEM_PROMPT = `You are APM.AI, an AI assistant for solar construction pr
 
 export async function POST(request: Request) {
   const supabase = await createClient()
-  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
   }
+
+  if (!process.env.ANTHROPIC_API_KEY || !process.env.OPENAI_API_KEY) {
+    return NextResponse.json({ error: 'AI API keys not configured' }, { status: 500 })
+  }
+
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
   try {
     const { message, projectId, sessionId: existingSessionId } = await request.json()

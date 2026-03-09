@@ -13,7 +13,7 @@ type Project = {
   created_at: string
 }
 
-export default function ProjectList({ projects: initialProjects }: { projects: Project[] }) {
+export default function ProjectList({ projects: initialProjects, userId }: { projects: Project[]; userId: string }) {
   const [projects, setProjects] = useState(initialProjects)
   const [showForm, setShowForm] = useState(false)
   const [projectNumber, setProjectNumber] = useState('')
@@ -28,7 +28,7 @@ export default function ProjectList({ projects: initialProjects }: { projects: P
 
     const { data, error } = await supabase
       .from('projects')
-      .insert({ project_number: projectNumber, name, location: location || null })
+      .insert({ project_number: projectNumber, name, location: location || null, created_by: userId })
       .select()
       .single()
 

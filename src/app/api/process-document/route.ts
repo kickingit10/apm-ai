@@ -65,7 +65,17 @@ async function extractText(buffer: Buffer, fileType: string, fileName: string): 
 
 export async function POST(request: Request) {
   const supabase = await createClient()
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  }
+
+  if (!process.env.OPENAI_API_KEY) {
+    return NextResponse.json({ error: 'OpenAI API key not configured' }, { status: 500 })
+  }
+
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
 
   try {
     const { documentId, storagePath, fileName, fileType, category } = await request.json()
