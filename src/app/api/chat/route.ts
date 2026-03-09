@@ -59,9 +59,15 @@ export async function POST(request: Request) {
     })
     const queryEmbedding = embeddingResponse.data[0].embedding
 
+    // Convert embedding array to PostgreSQL vector string literal
+    // supabase-js sends JS arrays as JSON which PostgREST may not
+    // properly cast to the pgvector `vector` type, causing silent
+    // empty results from cosine similarity comparisons
+    const embeddingStr = `[${queryEmbedding.join(',')}]`
+
     // Find relevant document chunks
     const { data: chunks, error: rpcError } = await supabase.rpc('match_document_chunks', {
-      query_embedding: queryEmbedding,
+      query_embedding: embeddingStr,
       match_project_id: projectId,
       match_threshold: 0.7,
       match_count: 5,
@@ -70,6 +76,8 @@ export async function POST(request: Request) {
     if (rpcError) {
       console.error('RPC error:', rpcError)
     }
+
+    console.log(`[RAG] query="${message.slice(0, 50)}" project=${projectId} embedding_len=${queryEmbedding.length} chunks_found=${chunks?.length ?? 0} rpc_error=${rpcError?.message ?? 'none'}`)
 
     // Build context from chunks
     const relevantChunks = chunks ?? []
