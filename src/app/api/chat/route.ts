@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
@@ -8,12 +8,14 @@ export const dynamic = 'force-dynamic'
 const SYSTEM_PROMPT = `You are APM.AI, an AI assistant for solar construction project managers. Answer questions based on the project documents provided. Always cite which document your answer comes from using the format [Document Name]. If the documents don't contain enough information to answer, say so honestly. Be concise and practical — these are busy construction professionals.`
 
 export async function POST(request: Request) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = await createClient()
   const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
+  }
 
   try {
     const { message, projectId, sessionId: existingSessionId } = await request.json()
@@ -28,7 +30,7 @@ export async function POST(request: Request) {
       const title = message.length > 50 ? message.slice(0, 50) + '...' : message
       const { data: session, error: sessionError } = await supabase
         .from('chat_sessions')
-        .insert({ project_id: projectId, title })
+        .insert({ project_id: projectId, user_id: user.id, title })
         .select()
         .single()
 

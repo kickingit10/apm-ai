@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/server'
 import OpenAI from 'openai'
 import { NextResponse } from 'next/server'
 
@@ -64,10 +64,7 @@ async function extractText(buffer: Buffer, fileType: string, fileName: string): 
 }
 
 export async function POST(request: Request) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
+  const supabase = await createClient()
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! })
 
   try {
