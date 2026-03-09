@@ -13,26 +13,30 @@ type Project = {
   created_at: string
 }
 
-export default function ProjectList({ projects: initialProjects, userId }: { projects: Project[]; userId: string }) {
+export default function ProjectList({ projects: initialProjects }: { projects: Project[] }) {
   const [projects, setProjects] = useState(initialProjects)
   const [showForm, setShowForm] = useState(false)
   const [projectNumber, setProjectNumber] = useState('')
   const [name, setName] = useState('')
   const [location, setLocation] = useState('')
   const [loading, setLoading] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
   const supabase = createClient()
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setFormError(null)
 
     const { data, error } = await supabase
       .from('projects')
-      .insert({ project_number: projectNumber, name, location: location || null, created_by: userId })
+      .insert({ project_number: projectNumber, name, location: location || null })
       .select()
       .single()
 
-    if (!error && data) {
+    if (error) {
+      setFormError(error.message)
+    } else if (data) {
       setProjects([data, ...projects])
       setProjectNumber('')
       setName('')
@@ -60,6 +64,9 @@ export default function ProjectList({ projects: initialProjects, userId }: { pro
 
       {showForm && (
         <form onSubmit={handleCreate} className="bg-white border border-gray-200 rounded-lg p-4 mb-6 space-y-3">
+          {formError && (
+            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md">{formError}</div>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Project #</label>
